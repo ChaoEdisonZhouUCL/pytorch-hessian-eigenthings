@@ -3,20 +3,31 @@ A simple example to calculate the top eigenvectors for the hessian of
 ResNet18 network for CIFAR-10
 """
 
-import track
-import skeletor
-from skeletor.datasets import build_dataset
-from skeletor.models import build_model
-
 import torch
+import torch.nn as nn
+import torchvision
+import torchvision.transforms as transforms
+from torchvision import models
+from timm import create_model
 
 from hessian_eigenthings import compute_hessian_eigenthings
 
+def set_seed(seed=42):
+    """Set seed for reproducibility"""
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def extra_args(parser):
+    parser.add_argument("--seed", default=42, type=int, help="random seed for reproducibility")
+    parser.add_argument("--checkpoint_dir", default="", type=str, help="path to checkpoint file")
     parser.add_argument(
         "--num_eigenthings",
-        default=5,
+        default=100,
         type=int,
         help="number of eigenvals/vecs to compute",
     )
@@ -45,18 +56,54 @@ def extra_args(parser):
 
 
 def main(args):
-    trainloader, testloader = build_dataset(
-        "cifar10",
-        dataroot=args.dataroot,
-        batch_size=args.batch_size,
-        eval_batch_size=args.eval_batch_size,
-        num_workers=2,
-    )
-    if args.fname:
-        print("Loading model from %s" % args.fname)
-        model = torch.load(args.fname, map_location="cpu").cuda()
+    # Set seed for reproducibility
+    set_seed(args.seed)
+    print(f"Using seed: {args.seed}")
+
+    # ----------------------------
+    # 1. CIFAR-10 dataset
+    # ----------------------------
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465),
+                            (0.2023, 0.1994, 0.2010)),
+    ])
+
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465),
+                            (0.2023, 0.1994, 0.2010)),
+    ])
+
+    trainset = torchvision.datasets.CIFAR10(
+        root='./data', train=True, download=True, transform=transform_train)
+    trainloader = torch.utils.data.DataLoader(
+        trainset, batch_size=128, shuffle=True, num_workers=4)
+
+    testset = torchvision.datasets.CIFAR10(
+        root='./data', train=False, download=True, transform=transform_test)
+    testloader = torch.utils.data.DataLoader(
+        testset, batch_size=100, shuffle=False, num_workers=4)
+
+    # ----------------------------
+    # 2. Pretrained ResNet-18
+    # ----------------------------
+    print("Loaded pretrained model")
+    model = create_model('resnet18', pretrained=True, num_classes=10)
+    # Load checkpoint
+    if args.checkpoint_dir:
+        checkpoint_dir = args.checkpoint_dir
     else:
-        model = build_model("ResNet18", num_classes=10)
+        checkpoint_dir = '/usr/local1/chao/pytorch-hessian-eigenthings/weight_gradient_hist/finetune_resnet_cifar10_sgd/lr_0.8/resnet18_sgd_epoch_30.pth'
+    
+    print(f"Loading checkpoint from: {checkpoint_dir}")
+    
+    # Load weights into model
+    state_dict = torch.load(checkpoint_dir, map_location="cpu")  # or "cuda:0"
+    model.load_state_dict(state_dict)
+    
     criterion = torch.nn.CrossEntropyLoss()
     eigenvals, eigenvecs = compute_hessian_eigenthings(
         model,
@@ -70,13 +117,16 @@ def main(args):
         full_dataset=args.full_dataset,
         use_gpu=args.cuda,
     )
+    print(f"resnet18 finetuned with sgd from epoch 30 has:")
     print("Eigenvecs:")
     print(eigenvecs)
     print("Eigenvals:")
     print(eigenvals)
-    # track.metric(iteration=0, eigenvals=eigenvals)
 
 
 if __name__ == "__main__":
-    skeletor.supply_args(extra_args)
-    skeletor.execute(main)
+    import argparse
+    parser = argparse.ArgumentParser()
+    extra_args(parser)
+    args = parser.parse_args()
+    main(args)

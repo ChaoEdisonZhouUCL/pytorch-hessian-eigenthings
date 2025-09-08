@@ -1,0 +1,54 @@
+# Hyperparameters for ViT on cifar10
+# model hyperparams
+model_name: "resnet18"
+pretrained: True
+
+# data hyperparams
+dataset_name: "cifar10"
+data_root: "./data/cifar10"
+num_classes: 10
+
+# opt hyperparams
+optimizer_name: "sgd" #  "nanoadamII", "adamwcollect", "adamw"
+log_every: 390
+save_dir: "./weight_gradient_hist/finetune_resnet_cifar10_sgd"
+k_init: 0.001
+largest: False # False
+beta1: 0.9
+beta2: 0.999
+eps: !!float 1e-8
+mask_interval: 100
+mask_criterion: "weights"
+dynamic_density: False
+density_interval: 391
+exclude_layers:
+  - "layernorm"
+  - "head"
+
+# # opt hyperparams for microadam
+# optimizer_name: "microadam"
+# k_init: 0.001
+# QUANT_BLOCK_SIZE: 100000
+# NGRADS: 10
+# beta1: 0.9
+# beta2: 0.999
+# eps: !!float 1e-8
+# log_every: 781
+
+# train hyperparams
+batch_size: 128
+num_epochs: 30
+learning_rate: !!float 1e-3
+weight_decay: 0.0
+scheduler_name: None # "cosineannealinglr"
+label_smoothing: 0.0 # 0.1
+seed: 42
+bf16: True
+fp16: False
+
+# wandb settings
+wandb_project: "Finetune_CIFAR10"
+wandb_name: "resnet18_finetune_cifar10_sgd"
+
+# DDP training
+ddp: True
