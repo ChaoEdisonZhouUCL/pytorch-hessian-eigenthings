@@ -315,7 +315,7 @@ def main():
         config['learning_rate'] = args.lr
     if args.opt != "adamw":
         config['optimizer_name'] = args.opt
-        config['wandb_name'] = f"{config['wandb_name']}_{args.opt}"
+        config['wandb_name'] = f"{config['wandb_name']}_{args.opt}_lr{config['learning_rate']}_seed{config['seed']}"
 
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         config['ddp'] = True

@@ -4,14 +4,18 @@ model_name: "resnet18"
 pretrained: True
 
 # data hyperparams
-dataset_name: "cifar10"
-data_root: "./data/cifar10"
-num_classes: 10
+# dataset_name: "cifar10"
+# data_root: "./data/cifar10"
+# num_classes: 10
+
+dataset_name: "flowers"
+data_root: "./data/flowers"
+num_classes: 102
 
 # opt hyperparams
 optimizer_name: "adamw" #  "nanoadamII", "adamwcollect", "adamw"
 log_every: 390
-save_dir: "./weight_gradient_hist/finetune_resnet_cifar10_adamw"
+save_dir: "./weight_gradient_hist/finetune_resnet_flowers_adamw"
 k_init: 0.001
 largest: False # False
 beta1: 0.9
@@ -48,7 +52,7 @@ fp16: False
 
 # wandb settings
 wandb_project: "Finetune_CIFAR10"
-wandb_name: "resnet18_finetune_cifar10"
+wandb_name: "resnet18_finetune_flowers"
 
 # DDP training
 ddp: True

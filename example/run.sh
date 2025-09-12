@@ -6,24 +6,15 @@
 
 # Configuration
 
-NUM_EIGENTHINGS=100
-MODE="power_iter"
+
 RESULTS_DIR="./experiment_results"
 CONFIG_FILE="./yaml/finetune_cnn_cifar10.yaml"
 
 # Create results directory
 mkdir -p "$RESULTS_DIR"
 
-# Results summary file
-SUMMARY_FILE="$RESULTS_DIR/eigenvalue_summary.txt"
-echo "Experiment Results Summary" > "$SUMMARY_FILE"
-echo "=========================" >> "$SUMMARY_FILE"
-echo "Date: $(date)" >> "$SUMMARY_FILE"
-echo "" >> "$SUMMARY_FILE"
-
-
 echo "==============================================="
-echo "Running experiment: SEED=$seed, LR=$lr"
+echo "Running experiment: SEED=$seed, LR=$lr OPTIMISER=$optimiser"
 echo "==============================================="
 lr=$1
 seed=$2
@@ -52,19 +43,19 @@ else
 fi
 
 # Step 2: Run finetune_vision.py
-echo "Step 1: Fine-tuning model with seed=$seed, lr=$lr..." | tee -a "$LOG_FILE"
+echo "Step 1: Fine-tuning model with seed=$seed, lr=$lr, opt=$optimiser..." | tee -a "$LOG_FILE"
 python example/finetune_vision.py --config "$TEMP_CONFIG" --lr "$lr" --opt "$optimiser" 2>&1 | tee -a "$LOG_FILE"
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    echo "ERROR: Fine-tuning failed for seed=$seed, lr=$lr" | tee -a "$LOG_FILE"
-    echo "ERROR: Fine-tuning failed for seed=$seed, lr=$lr" >> "$SUMMARY_FILE"
+    echo "ERROR: Fine-tuning failed for seed=$seed, lr=$lr, opt=$optimiser" | tee -a "$LOG_FILE"
+    echo "ERROR: Fine-tuning failed for seed=$seed, lr=$lr, opt=$optimiser" >> "$SUMMARY_FILE"
     continue
 fi
 
 # Clean up temporary config
 rm "$TEMP_CONFIG"
 
-echo "Completed experiment: SEED=$seed, LR=$lr" | tee -a "$LOG_FILE"
+echo "Completed experiment: SEED=$seed, LR=$lr, opt=$optimiser" | tee -a "$LOG_FILE"
 echo "Results saved to: $EXP_DIR" | tee -a "$LOG_FILE"
 echo ""
 
