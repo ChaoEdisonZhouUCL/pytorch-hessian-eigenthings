@@ -27,8 +27,10 @@ echo "Running experiment: SEED=$seed, LR=$lr"
 echo "==============================================="
 lr=$1
 seed=$2
+optimiser=$3
+Timestamp=$(date +"%Y%m%d_%H%M%S")
 # Create experiment-specific directory
-EXP_DIR="$RESULTS_DIR/seed_${seed}_lr_${lr}"
+EXP_DIR="$RESULTS_DIR/${optimiser}_seed_${seed}_lr_${lr}_${Timestamp}"
 mkdir -p "$EXP_DIR"
 
 # Log file for this experiment
@@ -51,7 +53,7 @@ fi
 
 # Step 2: Run finetune_vision.py
 echo "Step 1: Fine-tuning model with seed=$seed, lr=$lr..." | tee -a "$LOG_FILE"
-python example/finetune_vision.py --config "$TEMP_CONFIG" --lr "$lr" 2>&1 | tee -a "$LOG_FILE"
+python example/finetune_vision.py --config "$TEMP_CONFIG" --lr "$lr" --opt "$optimiser" 2>&1 | tee -a "$LOG_FILE"
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "ERROR: Fine-tuning failed for seed=$seed, lr=$lr" | tee -a "$LOG_FILE"

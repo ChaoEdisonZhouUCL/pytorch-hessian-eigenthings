@@ -24,9 +24,6 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision.models import resnet18
 
-# HuggingFace Transformers
-from transformers import set_seed
-
 # Timm (PyTorch Image Models)
 from timm import create_model
 from timm.data import create_transform, resolve_model_data_config
@@ -136,7 +133,6 @@ def eval_per_epoch(
 
 
 def task(rank, world_size, local_rank, configs):
-
     distributed = configs['ddp']
     
     # Set seed early and consistently across all processes
@@ -145,12 +141,7 @@ def task(rank, world_size, local_rank, configs):
     process_seed = base_seed + rank
     set_seed_full(process_seed)
     
-    print(f"Rank {rank}: using seed: {process_seed} (base: {base_seed})")
-    
-    if local_rank == 0:
-        print("[INFO] Initializing Weights & Biases...")
-        wandb.init(project=configs['wandb_project'],
-                   name=configs['wandb_name'], config=configs)
+    print(f"Rank {rank}: using seed: {process_seed} (base: {base_seed})")        
 
     # Load pretrained model
     print("[INFO] Loading pretrained model...")
@@ -167,40 +158,62 @@ def task(rank, world_size, local_rank, configs):
     # Ensure only rank 0 downloads the dataset
     if configs['dataset_name'].lower() == 'cifar10':
         datasets_prefix = torchvision.datasets.CIFAR10
+        train_split = True
+        test_split = False
     elif configs['dataset_name'].lower() == 'flowers':
         datasets_prefix = torchvision.datasets.Flowers102
+        train_split = 'train'
+        test_split = 'test'
     else:
         raise ValueError(
             f"Unsupported dataset: {configs['dataset_name']}. Supported datasets: cifar10")
     if local_rank == 0:
+        os.makedirs(configs['data_root'], exist_ok=True)
         # download on main rank
-        train_dataset = datasets_prefix(
-            root=configs['data_root'], train=True, transform=transform_train, download=True)
-        test_dataset = datasets_prefix(
-            root=configs['data_root'], train=False,  transform=transform_eval, download=True)
+        if configs['dataset_name'].lower() == 'cifar10':
+            train_dataset = datasets_class(
+                root=configs['data_root'], train=train_split, transform=transform_train, download=True)
+            test_dataset = datasets_class(
+                root=configs['data_root'], train=test_split, transform=transform_eval, download=True)
+        else:  # flowers
+            train_dataset = datasets_class(
+                root=configs['data_root'], split=train_split, transform=transform_train, download=True)
+            test_dataset = datasets_class(
+                root=configs['data_root'], split=test_split, transform=transform_eval, download=True)
+    
     # Synchronize all processes to wait until rank 0 is done
     if distributed:
         dist.barrier()  # Ensures all processes wait before proceeding
 
     # Load dataset
-    train_dataset = datasets_prefix(
-        root=configs['data_root'], train=True, transform=transform_train, download=True)
-    test_dataset = datasets_prefix(
-        root=configs['data_root'], train=False, transform=transform_eval, download=True)
+    if configs['dataset_name'].lower() == 'cifar10':
+        train_dataset = datasets_class(
+            root=configs['data_root'], train=train_split, transform=transform_train, download=False)
+        test_dataset = datasets_class(
+            root=configs['data_root'], train=test_split, transform=transform_eval, download=False)
+    else:  # flowers
+        train_dataset = datasets_class(
+            root=configs['data_root'], split=train_split, transform=transform_train, download=False)
+        test_dataset = datasets_class(
+            root=configs['data_root'], split=test_split, transform=transform_eval, download=False)
+
     train_sampler = DistributedSampler(
         train_dataset, seed=base_seed) if distributed else None
 
     train_loader = DataLoader(dataset=train_dataset,
-                              batch_size=configs['batch_size'], sampler=train_sampler)
+                              batch_size=configs['batch_size'],
+                              sampler=train_sampler,
+                              shuffle=(train_sampler is None)  # Only shuffle if no sampler
+                              )
     test_loader = DataLoader(dataset=test_dataset,
-                             batch_size=configs['batch_size'], shuffle=False)
+                             batch_size=configs['batch_size'],
+                             shuffle=False)
 
     if configs['bf16']:
         print("[INFO] Using bfloat16 precision...")
         model = model.to(dtype=torch.bfloat16)
 
-    model = DDP(model, device_ids=[
-                local_rank], find_unused_parameters=True) if distributed else model
+    model = DDP(model, device_ids=[local_rank], find_unused_parameters=True) if distributed else model
     print("[INFO] Model architecture:")
     print(model)
 
@@ -208,14 +221,7 @@ def task(rank, world_size, local_rank, configs):
     criterion = nn.CrossEntropyLoss(label_smoothing=configs['label_smoothing'])
 
     # optimizer = optim.Adam(model.parameters(), lr=configs['learning_rate'], weight_decay=configs['weight_decay'])
-    if configs['optimizer_name'].lower() == "adamwcollect":
-        print("*** Using adamw optimizer ***")
-        from AdamWcollect import LoggingAdamW
-        # comment out if donot need to use layer name in opt
-        param_groups = param_groups_with_name(model)
-        optimizer = LoggingAdamW(param_groups, lr=configs['learning_rate'], log_every=configs['log_every'],
-                                 save_dir=configs['save_dir'], weight_decay=configs['weight_decay'])
-    elif configs['optimizer_name'].lower() == "adamw":
+    if configs['optimizer_name'].lower() == "adamw":
         print(f"[INFO] Using AdamW optimizer...")
         from torch.optim import AdamW
         optimizer = AdamW(model.parameters(), lr=configs['learning_rate'],
@@ -225,50 +231,9 @@ def task(rank, world_size, local_rank, configs):
         from torch.optim import SGD
         optimizer = SGD(model.parameters(), lr=configs['learning_rate'],
                         weight_decay=configs['weight_decay'])
-
-    elif configs['optimizer_name'].lower() == "nanoadamii":
-        print("*** Using NanoAdam-II optimizer ***")
-        from Nanoadam import NanoAdam_II
-        param_groups = param_groups_with_name(
-            model
-        )  # comment out if donot need to use layer name in opt
-        total_gpus = int(os.environ.get("WORLD_SIZE", 1))
-        total_steps = len(train_dataset)/(configs['batch_size'] *
-                                          total_gpus) * configs['num_epochs']
-        optimizer = NanoAdam_II(
-            param_groups,
-            lr=configs['learning_rate'],
-            k_init=configs['k_init'],
-            largest=configs['largest'],
-            betas=(configs['beta1'], configs['beta2']),
-            weight_decay=configs['weight_decay'],
-            eps=configs['eps'],
-            log_every=configs['log_every'],
-            total_steps=total_steps,
-            mask_interval=configs['mask_interval'],
-            dynamic_density=configs['dynamic_density'],
-            density_interval=configs['density_interval'],
-            exclude_layers=set(configs['exclude_layers']),
-            mask_criterion=configs['mask_criterion'],
-        )
-    elif configs['optimizer_name'] == "microadam":
-        from microadam import MicroAdam
-
-        print("*** Using MicroAdam optimizer ***")
-        param_groups = param_groups_with_name(
-            model,
-        )  # comment out if donot need to use layer name in opt
-        optimizer = MicroAdam(
-            param_groups,
-            m=configs['NGRADS'],
-            lr=configs['learning_rate'],
-            quant_block_size=configs['QUANT_BLOCK_SIZE'],
-            k_init=configs['k_init'],
-            betas=(configs['beta1'], configs['beta2']),
-            weight_decay=configs['weight_decay'],
-            eps=configs['eps'],
-            log_every=configs['log_every'],
-        )
+    else:
+        raise ValueError(f"Unsupported optimizer: {configs['optimizer_name']}")
+    
     if configs['scheduler_name'] == "cosineannealinglr":
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=configs['num_epochs'])
@@ -276,7 +241,12 @@ def task(rank, world_size, local_rank, configs):
         scheduler = None
 
     # Training loop
-    save_model(model, configs['save_dir'], configs, epoch=0)
+    if local_rank == 0:
+        print("[INFO] Initializing Weights & Biases...")
+        wandb.init(project=configs['wandb_project'],
+                   name=configs['wandb_name'], config=configs)
+        save_model(model, configs['save_dir'], configs, epoch=0)
+        
     for epoch in range(configs['num_epochs']):
         train_loss, train_correct, train_samples = train_per_epoch(
             epoch, configs['num_epochs'], model, train_loader, train_sampler, optimizer, scheduler, criterion, distributed, configs)
@@ -306,10 +276,9 @@ def task(rank, world_size, local_rank, configs):
 
             print(
                 f"Epoch {epoch+1}: Train Loss={train_loss:.4f}, Train Acc={train_acc*100:.2f}%, Val Loss={val_loss:.4f}, Val Acc={val_acc*100:.2f}%")
-            if (epoch + 1) % (configs['num_epochs']//2) == 0:
+            if (epoch + 1) % (configs['num_epochs']//2) == 0 or (epoch + 1) == configs['num_epochs']:
                 save_model(model, configs['save_dir'], configs, epoch=epoch+1)
-    if local_rank == 0:
-        save_model(model, configs['save_dir'], configs, epoch=epoch)
+    if local_rank == 0:        
         print("[INFO] Finishing Weights & Biases...")
         wandb.finish()
 
@@ -320,9 +289,11 @@ def task(rank, world_size, local_rank, configs):
 
 def save_model(model, save_path, configs, epoch):
     print(f"[INFO] Saving model at epoch {epoch}...")
-    save_path = os.path.join(save_path, f"lr_{configs['learning_rate']}", f"_seed_{configs['seed']}")
-    if not os.path.exists(save_path):
-        os.makedirs(save_path, exist_ok=True)
+    save_path = os.path.join(save_path, f"lr_{configs['learning_rate']}_epoch_{configs['num_epochs']}", f"_seed_{configs['seed']}")
+    os.makedirs(save_path, exist_ok=True)
+    
+    # Handle DDP model
+    model_to_save = model.module if hasattr(model, 'module') else model
     torch.save(model.state_dict(), os.path.join(
         save_path, f"{configs['model_name']}_{configs['optimizer_name']}_epoch_{epoch}.pth"))
     print("[INFO] Model saved successfully.")
@@ -333,6 +304,8 @@ def main():
                         help="Path to the config YAML file")
     parser.add_argument('--lr', type=float, default=None,
                         help="Learning rate for the optimizer")
+    parser.add_argument('--opt', type=str, default="adamw",
+                        help="Optimizer name")
     args = parser.parse_args()
 
     # Load the config from the passed path
@@ -340,6 +313,9 @@ def main():
 
     if args.lr is not None:
         config['learning_rate'] = args.lr
+    if args.opt != "adamw":
+        config['optimizer_name'] = args.opt
+        config['wandb_name'] = f"{config['wandb_name']}_{args.opt}"
 
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         config['ddp'] = True

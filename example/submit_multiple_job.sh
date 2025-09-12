@@ -4,23 +4,32 @@
 
 # Define the array of learning rates
 
-SEEDS=(123 456 789 1000)
-LRS=(0.001 0.1 0.8)
-
+SEEDS=(1000)
+LRS=(0.001)
+optimiser="adamw"
+EPOCHS=(0 7 14)
 
 job_script="example/cispa_cluster_job.sh"
+
 
 # Loop over each learning rate
 for lr in "${LRS[@]}"; do
     for seed in "${SEEDS[@]}"; do
-        echo "Submitting job with learning rate: $lr and seed: $seed"
+        for epoch in "${EPOCHS[@]}"; do
+            echo "Submitting job with learning rate: $lr, seed: $seed"
 
-    # Submit the job with the learning rate as an argument
-    sbatch --exclude=xe8545-a100-06 $job_script $lr $seed
+            # # Submit the job with the learning rate as an argument
+            # sbatch $job_script $lr $seed
 
-    # Wait for a short time to avoid overwhelming the scheduler
-    sleep 2
-    
+            # source ./example/run.sh $lr $seed $optimiser
+
+            source ./example/run_experiments.sh $lr $seed $epoch $optimiser
+
+            # Wait for a short time to avoid overwhelming the scheduler
+            sleep 2
+        done
+  
+    done
 done
 
 echo "All jobs submitted."

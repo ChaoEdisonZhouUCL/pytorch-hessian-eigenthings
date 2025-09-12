@@ -44,7 +44,7 @@ export nproc_per_node=4
 export WANDB_MODE=online
 
 srun --container-image=projects.cispa.saarland:5005#c01chzh/nanoadam:latest --container-mounts="$WORK_DIR":/workspace\
-    bash $WORK_DIR/example/run.sh $1 $2
+    bash $WORK_DIR/example/run.sh $1 $2 $3
    
     
 srun mv $WORK_DIR/tmp/job-"$SLURM_JOB_ID".out "$JOBTMPDIR"/out.txt

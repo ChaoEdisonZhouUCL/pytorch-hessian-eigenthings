@@ -9,9 +9,9 @@ data_root: "./data/cifar10"
 num_classes: 10
 
 # opt hyperparams
-optimizer_name: "sgd" #  "nanoadamII", "adamwcollect", "adamw"
+optimizer_name: "adamw" #  "nanoadamII", "adamwcollect", "adamw"
 log_every: 390
-save_dir: "./weight_gradient_hist/finetune_resnet_cifar10_sgd"
+save_dir: "./weight_gradient_hist/finetune_resnet_cifar10_adamw"
 k_init: 0.001
 largest: False # False
 beta1: 0.9
@@ -37,7 +37,7 @@ exclude_layers:
 
 # train hyperparams
 batch_size: 128
-num_epochs: 30
+num_epochs: 15
 learning_rate: !!float 1e-3
 weight_decay: 0.0
 scheduler_name: None # "cosineannealinglr"
@@ -48,7 +48,7 @@ fp16: False
 
 # wandb settings
 wandb_project: "Finetune_CIFAR10"
-wandb_name: "resnet18_finetune_cifar10_sgd"
+wandb_name: "resnet18_finetune_cifar10"
 
 # DDP training
 ddp: True
