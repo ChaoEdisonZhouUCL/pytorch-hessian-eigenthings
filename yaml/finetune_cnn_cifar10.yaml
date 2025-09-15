@@ -56,7 +56,7 @@ fp16: False
 
 # wandb settings
 wandb_project: "Finetune_CIFAR10"
-wandb_name: "resnet18_finetune_cifar100"
+wandb_name: "resnet18_finetune"
 
 # DDP training
 ddp: True

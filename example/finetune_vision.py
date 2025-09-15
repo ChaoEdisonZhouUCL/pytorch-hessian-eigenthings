@@ -308,7 +308,7 @@ def main():
                         help="Path to the config YAML file")
     parser.add_argument('--lr', type=float, default=None,
                         help="Learning rate for the optimizer")
-    parser.add_argument('--opt', type=str, default="adamw",
+    parser.add_argument('--opt', type=str, default=None",
                         help="Optimizer name")
     args = parser.parse_args()
 
@@ -317,9 +317,9 @@ def main():
 
     if args.lr is not None:
         config['learning_rate'] = args.lr
-    if args.opt != "adamw":
+    if args.opt is not None:
         config['optimizer_name'] = args.opt
-        config['wandb_name'] = f"{config['wandb_name']}_{args.opt}_lr{config['learning_rate']}_seed{config['seed']}"
+    config['wandb_name'] = f"{config['wandb_name']}_{config['dataset_name']}_{config['optimizer_name']}_lr{config['learning_rate']}_seed{config['seed']}"
 
     config['save_dir']=f"{config['save_dir']}_{config['dataset_name']}_{config['optimizer_name']}"
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
