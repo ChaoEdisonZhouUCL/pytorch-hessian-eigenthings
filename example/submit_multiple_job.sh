@@ -5,8 +5,8 @@
 # Define the array of learning rates
 
 SEEDS=(123)
-LRS=(0.01 0.1 0.2 0.3 0.4 0.5)
-optimiser="sgd"
+LRS=(0.01 0.02 0.001)
+optimiser="adamw"
 # EPOCHS=(0 7 14)
 
 job_script="example/cispa_cluster_job.sh"
