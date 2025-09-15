@@ -308,7 +308,7 @@ def main():
                         help="Path to the config YAML file")
     parser.add_argument('--lr', type=float, default=None,
                         help="Learning rate for the optimizer")
-    parser.add_argument('--opt', type=str, default=None",
+    parser.add_argument('--opt', type=str, default=None,
                         help="Optimizer name")
     args = parser.parse_args()
 
