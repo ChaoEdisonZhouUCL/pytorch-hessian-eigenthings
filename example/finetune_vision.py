@@ -157,11 +157,15 @@ def task(rank, world_size, local_rank, configs):
 
     # Ensure only rank 0 downloads the dataset
     if configs['dataset_name'].lower() == 'cifar10':
-        datasets_prefix = torchvision.datasets.CIFAR10
+        datasets_class = torchvision.datasets.CIFAR10
+        train_split = True
+        test_split = False
+    elif configs['dataset_name'].lower() == 'cifar100':
+        datasets_class = torchvision.datasets.CIFAR100
         train_split = True
         test_split = False
     elif configs['dataset_name'].lower() == 'flowers':
-        datasets_prefix = torchvision.datasets.Flowers102
+        datasets_class = torchvision.datasets.Flowers102
         train_split = 'train'
         test_split = 'test'
     else:
@@ -170,7 +174,7 @@ def task(rank, world_size, local_rank, configs):
     if local_rank == 0:
         os.makedirs(configs['data_root'], exist_ok=True)
         # download on main rank
-        if configs['dataset_name'].lower() == 'cifar10':
+        if configs['dataset_name'].lower() == 'cifar10' or configs['dataset_name'].lower() == 'cifar100':
             train_dataset = datasets_class(
                 root=configs['data_root'], train=train_split, transform=transform_train, download=True)
             test_dataset = datasets_class(
@@ -186,7 +190,7 @@ def task(rank, world_size, local_rank, configs):
         dist.barrier()  # Ensures all processes wait before proceeding
 
     # Load dataset
-    if configs['dataset_name'].lower() == 'cifar10':
+    if configs['dataset_name'].lower() == 'cifar10' or configs['dataset_name'].lower() == 'cifar100':
         train_dataset = datasets_class(
             root=configs['data_root'], train=train_split, transform=transform_train, download=False)
         test_dataset = datasets_class(

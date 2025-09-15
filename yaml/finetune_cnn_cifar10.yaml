@@ -19,7 +19,7 @@ num_classes: 100
 # opt hyperparams
 optimizer_name: "adamw" #  "nanoadamII", "adamwcollect", "adamw"
 log_every: 390
-save_dir: "./weight_gradient_hist/finetune_resnet_cifar100_adamw"
+save_dir: "./weight_gradient_hist/finetune_resnet_cifar100_sgd"
 k_init: 0.001
 largest: False # False
 beta1: 0.9
