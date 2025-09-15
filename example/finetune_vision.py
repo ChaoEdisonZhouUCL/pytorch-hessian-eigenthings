@@ -321,7 +321,7 @@ def main():
         config['optimizer_name'] = args.opt
         config['wandb_name'] = f"{config['wandb_name']}_{args.opt}_lr{config['learning_rate']}_seed{config['seed']}"
 
-    config['save_dir']=f"{config['save_dir']}_{configs['dataset_name']}_{config['optimizer_name']}"
+    config['save_dir']=f"{config['save_dir']}_{config['dataset_name']}_{config['optimizer_name']}"
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         config['ddp'] = True
     else:
