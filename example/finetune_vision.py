@@ -3,6 +3,8 @@ import argparse
 import os
 import random
 import yaml
+import pickle
+from collections import defaultdict
 
 # Third-party libraries
 import numpy as np
@@ -27,6 +29,28 @@ from torchvision.models import resnet18
 # Timm (PyTorch Image Models)
 from timm import create_model
 from timm.data import create_transform, resolve_model_data_config
+
+def save_gradients(model, save_dir, epoch, configs, batch_idx=0):
+    """Save gradients for each parameter"""
+    gradients = {}
+    
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            gradients[name] = param.grad.detach().cpu().clone()
+        else:
+            gradients[name] = None
+    
+    # Create save directory
+    grad_save_dir = os.path.join(save_dir,"gradients", f"lr_{configs['learning_rate']}_epoch_{configs['num_epochs']}", f"_seed_{configs['seed']}")
+    os.makedirs(grad_save_dir, exist_ok=True)
+    
+    # Save gradients
+    grad_file = os.path.join(grad_save_dir, f"gradients_epoch_{epoch}_batch_{batch_idx}.pkl")
+    with open(grad_file, 'wb') as f:
+        pickle.dump(gradients, f)
+    
+    print(f"Saved gradients to: {grad_file}")
+    return grad_file
 
 def set_seed_full(seed):
     """Set seed for full reproducibility across all random number generators"""
@@ -85,7 +109,7 @@ def param_groups_with_name(
 
 
 def train_per_epoch(
-        cur_epoch, total_epoch, model, train_loader, train_sampler, optimizer, scheduler, criterion, distributed, configs):
+        cur_epoch, total_epoch, model, train_loader, train_sampler, optimizer, scheduler, criterion, distributed, configs, local_rank=0):
     if distributed:
         train_sampler.set_epoch(cur_epoch)
     model.train()
@@ -93,7 +117,7 @@ def train_per_epoch(
     # bfloat16 does not need GradScaler, but kept for compatibility
     scaler = GradScaler(enabled=configs['bf16'])
 
-    for images, labels in tqdm(train_loader, desc=f"Epoch {cur_epoch+1}/{total_epoch}"):
+    for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc=f"Epoch {cur_epoch+1}/{total_epoch}")):
         images, labels = images.cuda(), labels.cuda()
         optimizer.zero_grad()
         with autocast(device_type='cuda', enabled=configs['bf16'], dtype=torch.bfloat16 if configs['bf16'] else torch.float16):
@@ -101,6 +125,11 @@ def train_per_epoch(
             loss = criterion(outputs, labels)
 
         loss.backward()
+        
+        # Save gradients for the first batch of each epoch (only on rank 0)
+        # if batch_idx == 0 and configs.get('save_gradients', True) and local_rank == 0:
+        #     save_gradients(model, configs['save_dir'], cur_epoch, configs, batch_idx)
+        
         optimizer.step()
 
         running_loss += loss.item() * images.size(0)
@@ -253,7 +282,7 @@ def task(rank, world_size, local_rank, configs):
         
     for epoch in range(configs['num_epochs']):
         train_loss, train_correct, train_samples = train_per_epoch(
-            epoch, configs['num_epochs'], model, train_loader, train_sampler, optimizer, scheduler, criterion, distributed, configs)
+            epoch, configs['num_epochs'], model, train_loader, train_sampler, optimizer, scheduler, criterion, distributed, configs, local_rank)
         val_loss, val_correct, val_samples = eval_per_epoch(
             model, test_loader, criterion, configs)
        
@@ -293,7 +322,7 @@ def task(rank, world_size, local_rank, configs):
 
 def save_model(model, save_path, configs, epoch):
     print(f"[INFO] Saving model at epoch {epoch}...")
-    save_path = os.path.join(save_path, f"lr_{configs['learning_rate']}_epoch_{configs['num_epochs']}", f"_seed_{configs['seed']}")
+    save_path = os.path.join(save_path, f"lr_{configs['learning_rate']}_epoch_{configs['num_epochs']}_wd_{configs['weight_decay']}", f"_seed_{configs['seed']}")
     os.makedirs(save_path, exist_ok=True)
     
     # Handle DDP model
@@ -310,6 +339,9 @@ def main():
                         help="Learning rate for the optimizer")
     parser.add_argument('--opt', type=str, default=None,
                         help="Optimizer name")
+    parser.add_argument('--wd', type=float, default=None,
+                        help="Weight decay for the optimizer")
+     # Parse known args to avoid issues with unknown args in distributed setups
     args = parser.parse_args()
 
     # Load the config from the passed path
@@ -319,7 +351,9 @@ def main():
         config['learning_rate'] = args.lr
     if args.opt is not None:
         config['optimizer_name'] = args.opt
-    config['wandb_name'] = f"{config['wandb_name']}_{config['dataset_name']}_{config['optimizer_name']}_lr{config['learning_rate']}_seed{config['seed']}"
+    if args.wd is not None:
+        config['weight_decay'] = args.wd
+    config['wandb_name'] = f"{config['wandb_name']}_{config['dataset_name']}_{config['optimizer_name']}_wd{config['weight_decay']}_lr{config['learning_rate']}_seed{config['seed']}"
 
     config['save_dir']=f"{config['save_dir']}_{config['dataset_name']}_{config['optimizer_name']}"
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:

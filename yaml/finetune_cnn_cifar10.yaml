@@ -3,14 +3,14 @@
 model_name: "resnet18"
 pretrained: True
 
-# data hyperparams
-# dataset_name: "cifar10"
-# data_root: "./data/cifar10"
-# num_classes: 10
+# # data hyperparams
+dataset_name: "cifar10"
+data_root: "./data/cifar10"
+num_classes: 10
 
-dataset_name: "cifar100"
-data_root: "./data/cifar100"
-num_classes: 100
+# dataset_name: "cifar100"
+# data_root: "./data/cifar100"
+# num_classes: 100
 
 # dataset_name: "flowers"
 # data_root: "./data/flowers"
@@ -18,30 +18,8 @@ num_classes: 100
 
 # opt hyperparams
 optimizer_name: "adamw" #  "nanoadamII", "adamwcollect", "adamw"
-log_every: 390
 save_dir: "./weight_gradient_hist/finetune_resnet"
-k_init: 0.001
-largest: False # False
-beta1: 0.9
-beta2: 0.999
-eps: !!float 1e-8
-mask_interval: 100
-mask_criterion: "weights"
-dynamic_density: False
-density_interval: 391
-exclude_layers:
-  - "layernorm"
-  - "head"
 
-# # opt hyperparams for microadam
-# optimizer_name: "microadam"
-# k_init: 0.001
-# QUANT_BLOCK_SIZE: 100000
-# NGRADS: 10
-# beta1: 0.9
-# beta2: 0.999
-# eps: !!float 1e-8
-# log_every: 781
 
 # train hyperparams
 batch_size: 128

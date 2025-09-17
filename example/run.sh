@@ -12,21 +12,23 @@ CONFIG_FILE="./yaml/finetune_cnn_cifar10.yaml"
 
 # Create results directory
 mkdir -p "$RESULTS_DIR"
-
-echo "==============================================="
-echo "Running experiment: SEED=$seed, LR=$lr OPTIMISER=$optimiser"
-echo "==============================================="
 lr=$1
 seed=$2
 optimiser=$3
+wd=$4
+
+echo "==============================================="
+echo "Running experiment: SEED=$seed, LR=$lr, OPTIMISER=$optimiser, WD=$wd"
+echo "==============================================="
+
 Timestamp=$(date +"%Y%m%d_%H%M%S")
 # Create experiment-specific directory
-EXP_DIR="$RESULTS_DIR/${optimiser}_seed_${seed}_lr_${lr}_${Timestamp}"
+EXP_DIR="$RESULTS_DIR/${optimiser}_seed_${seed}_lr_${lr}_wd_${wd}_${Timestamp}"
 mkdir -p "$EXP_DIR"
 
 # Log file for this experiment
 LOG_FILE="$EXP_DIR/experiment.log"
-echo "Starting experiment: SEED=$seed, LR=$lr" > "$LOG_FILE"
+echo "Starting experiment: SEED=$seed, LR=$lr, OPTIMISER=$optimiser, WD=$wd" > "$LOG_FILE"
 echo "Timestamp: $(date)" >> "$LOG_FILE"
 echo "" >> "$LOG_FILE"
 
@@ -43,8 +45,8 @@ else
 fi
 
 # Step 2: Run finetune_vision.py
-echo "Step 1: Fine-tuning model with seed=$seed, lr=$lr, opt=$optimiser..." | tee -a "$LOG_FILE"
-python example/finetune_vision.py --config "$TEMP_CONFIG" --lr "$lr" --opt "$optimiser" 2>&1 | tee -a "$LOG_FILE"
+echo "Step 1: Fine-tuning model with seed=$seed, lr=$lr, opt=$optimiser, wd=$wd..." | tee -a "$LOG_FILE"
+python example/finetune_vision.py --config "$TEMP_CONFIG" --lr "$lr" --opt "$optimiser" --wd "$wd" 2>&1 | tee -a "$LOG_FILE"
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "ERROR: Fine-tuning failed for seed=$seed, lr=$lr, opt=$optimiser" | tee -a "$LOG_FILE"

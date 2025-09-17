@@ -5,8 +5,9 @@
 # Define the array of learning rates
 
 SEEDS=(123)
-LRS=(0.01 0.1 0.3 0.5 0.7)
-optimiser="sgd"
+LRS=(0.001)
+wd=0.01
+optimiser="adamw"
 # EPOCHS=(0 7 14)
 
 job_script="example/cispa_cluster_job.sh"
@@ -19,9 +20,9 @@ for lr in "${LRS[@]}"; do
         echo "Submitting job with learning rate: $lr, seed: $seed"
 
         # # Submit the job with the learning rate as an argument
-        sbatch $job_script $lr $seed $optimiser
+        # sbatch $job_script $lr $seed $optimiser
 
-        # source ./example/run.sh $lr $seed $optimiser
+        source ./example/run.sh $lr $seed $optimiser $wd
 
         # source ./example/run_experiments.sh $lr $seed $epoch $optimiser
 
