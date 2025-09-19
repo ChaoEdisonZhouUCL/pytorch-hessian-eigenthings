@@ -33,9 +33,11 @@ lr=$1
 seed=$2
 epoch=$3
 optimiser=$4
+weight_decay=$5
+dataset=$6
 NUM_EIGENTHINGS=50
-MODE="power_iter"
-RESULTS_DIR="./experiment_results"
+MODE="power_iter" #  lanczos,  power_iter
+RESULTS_DIR="./experiment_results/${dataset}"
 
 # Create results directory
 mkdir -p "$RESULTS_DIR"
@@ -50,28 +52,28 @@ echo "" >> "$SUMMARY_FILE"
 # Main experiment
 
 echo "==============================================="
-echo "Running experiment: SEED=$seed, LR=$lr"
+echo "Running experiment: SEED=$seed, LR=$lr, OPT=$optimiser, epoch=$epoch, WD=$weight_decay"
 echo "==============================================="
 
 # Create experiment-specific directory
-EXP_DIR="$RESULTS_DIR/${optimiser}_seed_${seed}_lr_${lr}_epoch_15"
+EXP_DIR="$RESULTS_DIR/${optimiser}_seed_${seed}_lr_${lr}_wd_${weight_decay}_epoch_15"
 mkdir -p "$EXP_DIR"
 
 # Log file for this experiment
 LOG_FILE="$EXP_DIR/experiment.log"
-echo "Starting experiment: SEED=$seed, LR=$lr" > "$LOG_FILE"
+echo "Starting experiment: SEED=$seed, OPT=$optimiser, LR=$lr, WD=$weight_decay" > "$LOG_FILE"
 echo "Timestamp: $(date)" >> "$LOG_FILE"
 echo "" >> "$LOG_FILE"
 
 # Step 3: Find the generated checkpoint
-# Assuming the checkpoint is saved in the format: weight_gradient_hist/finetune_resnet_cifar10_*/lr_${lr}_seed_${seed}/*_epoch_*.pth
-CHECKPOINT_PATTERN="./weight_gradient_hist/finetune_resnet_cifar10_${optimiser}/lr_${lr}_epoch_15/_seed_${seed}/*_epoch_${epoch}.pth"
+# Assuming the checkpoint is saved in the format: weight_gradient_hist/finetune_resnet_${}_*/lr_${lr}_seed_${seed}/*_epoch_*.pth
+CHECKPOINT_PATTERN="./weight_gradient_hist/finetune_resnet_${dataset}_${optimiser}/lr_${lr}_epoch_15_wd_${weight_decay}/_seed_${seed}/*_epoch_${epoch}.pth"
 CHECKPOINT_DIR=$(find . -path "$CHECKPOINT_PATTERN" -type f | head -1)
 
 if [ -z "$CHECKPOINT_DIR" ]; then
     echo "ERROR: No checkpoint found for seed=$seed, lr=$lr" | tee -a "$LOG_FILE"
     echo "ERROR: No checkpoint found for seed=$seed, lr=$lr" >> "$SUMMARY_FILE"
-    exit 1
+    
 fi
 
 echo "Found checkpoint: $CHECKPOINT_DIR" | tee -a "$LOG_FILE"
@@ -82,11 +84,12 @@ EIGENVAL_OUTPUT="$EXP_DIR/eigenvalues.txt"
 
 $ENV_ACTIVATION $TORCHRUN_CMD example/main.py \
     --mode="$MODE" \
+    --dataset="$dataset" \
     --num_eigenthings="$NUM_EIGENTHINGS" \
     --seed="$seed" \
     --cuda \
     --checkpoint_dir="$CHECKPOINT_DIR" \
-    --output_excel="$EXP_DIR/eigenvalues_seed${seed}_lr${lr}_epoch${epoch}.xlsx" \
+    --output_excel="$EXP_DIR/eigenvalues_seed${seed}_lr${lr}_wd${weight_decay}_epoch${epoch}.xlsx" \
     2>&1 | tee "$EIGENVAL_OUTPUT"
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then

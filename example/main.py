@@ -10,6 +10,8 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision import models
 from timm import create_model
+from timm.data import create_transform, resolve_model_data_config
+
 import pandas as pd
 import os
 
@@ -27,6 +29,7 @@ def set_seed(seed=42):
 
 def extra_args(parser):
     parser.add_argument("--seed", default=42, type=int, help="random seed for reproducibility")
+    parser.add_argument("--dataset", default="cifar10", type=str, help="dataset to use")
     parser.add_argument("--checkpoint_dir", default="", type=str, help="path to checkpoint file")
     parser.add_argument(
         "--num_eigenthings",
@@ -66,39 +69,55 @@ def main(args):
     print(f"Using seed: {args.seed}")
     device = torch.device("cuda" if args.cuda and torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    
+    if args.dataset.lower() == "cifar10":
+        num_classes = 10
+    elif args.dataset.lower() == "cifar100":
+        num_classes = 100
+    elif "flower" in args.dataset.lower():
+        num_classes = 102
+    else:
+        raise ValueError(f"Unsupported dataset: {args.dataset}. Supported datasets are cifar10, cifar100, flowers.")
 
     # ----------------------------
-    # 1. CIFAR-10 dataset
+    # 1. load dataset
     # ----------------------------
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465),
-                            (0.2023, 0.1994, 0.2010)),
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465),
-                            (0.2023, 0.1994, 0.2010)),
-    ])
-
-    trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train)
+    print("Loaded pretrained model")
+    model = create_model('resnet18', pretrained=True, num_classes=num_classes).to(device)
+    data_config = resolve_model_data_config(model)
+    transform_train = create_transform(**data_config, is_training=True)
+    transform_test = create_transform(**data_config, is_training=False)
+    
+    if args.dataset.lower() == "cifar10":
+        num_classes = 10
+        trainset = torchvision.datasets.CIFAR10(
+            root='./data/cifar10', train=True, download=True, transform=transform_train)
+        testset = torchvision.datasets.CIFAR10(
+        root='./data/cifar10', train=False, download=True, transform=transform_test)
+    elif args.dataset.lower() == "cifar100":
+        num_classes = 100
+        trainset = torchvision.datasets.CIFAR100(
+            root='./data/cifar100', train=True, download=True, transform=transform_train)
+        testset = torchvision.datasets.CIFAR100(
+        root='./data/cifar100', train=False, download=True, transform=transform_test)
+    elif "flower" in args.dataset.lower():
+        print("Using Flowers102 dataset")
+        num_classes = 102
+        trainset = torchvision.datasets.Flowers102(
+            root='./data/flowers', split='train', download=True, transform=transform_train)
+        testset = torchvision.datasets.Flowers102(
+            root='./data/flowers', split='val', download=True, transform=transform_test)
+    else:
+        raise ValueError(f"Unsupported dataset: {args.dataset}. Supported datasets are cifar10, cifar100, flowers.")
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=128, shuffle=True, num_workers=4)
-
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform_test)
+        trainset, batch_size=128, shuffle=True, num_workers=4)    
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=100, shuffle=False, num_workers=4)
 
     # ----------------------------
     # 2. Pretrained ResNet-18
     # ----------------------------
-    print("Loaded pretrained model")
-    model = create_model('resnet18', pretrained=True, num_classes=10).to(device)
+    
     # Load checkpoint
     if args.checkpoint_dir:
         checkpoint_dir = args.checkpoint_dir
@@ -109,6 +128,14 @@ def main(args):
     
     # Load weights into model
     state_dict = torch.load(checkpoint_dir, map_location="cpu")  # or "cuda:0"
+    # Remove 'module.' prefix if present (from DataParallel/DistributedDataParallel)
+    if any(key.startswith('module.') for key in state_dict.keys()):
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            new_key = key.replace('module.', '') if key.startswith('module.') else key
+            new_state_dict[new_key] = value
+        state_dict = new_state_dict
+        
     model.load_state_dict(state_dict)
     
     criterion = torch.nn.CrossEntropyLoss()
