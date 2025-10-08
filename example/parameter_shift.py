@@ -170,19 +170,25 @@ def main():
                        help="Learning rate used during finetuning (for reference)")
     parser.add_argument('--seed', type=int, default=42, required=False,
                        help="Random seed used during finetuning (for reference)")
+    parser.add_argument('--weight_decay', type=float, default=1.0, required=False)
+    parser.add_argument('--opt', type=str, default='adamw', choices=['sgd', 'adamw'],)
+    parser.add_argument('--dataset', type=str, default='cifar100', choices=['cifar10', 'cifar100', 'flowers']),
     parser.add_argument('--output_dir', type=str, default='./parameter_shift_results',
                        help="Directory to save results")
     
     args = parser.parse_args()
     lr=args.lr
     seed=args.seed
+    wd=args.weight_decay
+    dataset=args.dataset
+    opt=args.opt
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
     
     # Load model weights
     print("Loading model weights...")
-    pretrained_path = f'/usr/local1/chao/pytorch-hessian-eigenthings/weight_gradient_hist/finetune_resnet_cifar10_adamw/lr_{lr}_epoch_15/_seed_{seed}/resnet18_adamw_epoch_0.pth'
-    finetuned_path = f'/usr/local1/chao/pytorch-hessian-eigenthings/weight_gradient_hist/finetune_resnet_cifar10_adamw/lr_{lr}_epoch_15/_seed_{seed}/resnet18_adamw_epoch_14.pth'
+    pretrained_path = f'/usr/local1/chao/pytorch-hessian-eigenthings/weight_gradient_hist/finetune_resnet_{dataset}_{opt}/lr_{lr}_epoch_15_wd_{wd}/_seed_{seed}/resnet18_{opt}_epoch_0.pth'
+    finetuned_path = f'/usr/local1/chao/pytorch-hessian-eigenthings/weight_gradient_hist/finetune_resnet_{dataset}_{opt}/lr_{lr}_epoch_15_wd_{wd}/_seed_{seed}/resnet18_{opt}_epoch_14.pth'
     pretrained_dict = load_state_dict(pretrained_path)
     finetuned_dict = load_state_dict(finetuned_path)
     
@@ -195,7 +201,7 @@ def main():
     print_results(results_whole, "CASE 1: WHOLE MODEL (INCLUDING CLASSIFIER)")
     
     # Save results
-    save_results_to_file(results_whole, os.path.join(args.output_dir, f"adamw_lr_{lr}_seed_{seed}_epoch15_whole_model_shifts.txt"))
+    save_results_to_file(results_whole, os.path.join(args.output_dir, f"{dataset}_{opt}_lr_{lr}_seed_{seed}_wd_{wd}_epoch15_whole_model_shifts.txt"))
     
     # Case 2: Model without classifier  
     print("\nCalculating shifts without classifier...")
@@ -203,7 +209,7 @@ def main():
     print_results(results_no_classifier, "CASE 2: MODEL WITHOUT CLASSIFIER")
     
     # Save results
-    save_results_to_file(results_no_classifier, os.path.join(args.output_dir, f"adamw_lr_{lr}_seed_{seed}_epoch15_no_classifier_shifts.txt"))
+    save_results_to_file(results_no_classifier, os.path.join(args.output_dir, f"{dataset}_{opt}_lr_{lr}_seed_{seed}_wd_{wd}_epoch15_no_classifier_shifts.txt"))
     
     # Summary comparison
     print(f"\n{'='*60}")

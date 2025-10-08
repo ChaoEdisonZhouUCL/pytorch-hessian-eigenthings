@@ -4,10 +4,10 @@
 
 # Define the array of learning rates
 
-SEEDS=(123 456 789)
+SEEDS=(1000)
 LRS=(0.002)
 wd=0.0
-optimiser="sgd"
+optimiser="adamw"
 dataset="flowers"
 EPOCHS=(0 7 14)
 
