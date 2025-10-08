@@ -4,12 +4,12 @@
 
 # Define the array of learning rates
 
-SEEDS=(1000)
-LRS=(0.002)
+SEEDS=(7 42 1234)
+LRS=(1e-1 7e-5)
 wd=0.0
 optimiser="adamw"
-dataset="flowers"
-EPOCHS=(0 7 14)
+dataset="cola"
+EPOCHS=(268 536 804 1072 1340)
 
 job_script="example/cispa_cluster_job.sh"
 
@@ -17,7 +17,7 @@ job_script="example/cispa_cluster_job.sh"
 # Loop over each learning rate
 for lr in "${LRS[@]}"; do
     for seed in "${SEEDS[@]}"; do
-        # for epoch in "${EPOCHS[@]}"; do
+        for epoch in "${EPOCHS[@]}"; do
             echo "Submitting job with opt: $optimiser, learning rate: $lr, seed: $seed, weight decay: $wd"
 
             # # Submit the job with the learning rate as an argument
@@ -25,13 +25,13 @@ for lr in "${LRS[@]}"; do
 
             # source ./example/run.sh $lr $seed $optimiser $wd
 
-            # source ./example/run_experiments.sh $lr $seed $epoch $optimiser $wd $dataset
+            source ./example/run_experiments_LLM.sh $lr $seed $epoch $optimiser $wd $dataset
 
 
-            python ./example/parameter_shift.py --lr $lr --seed $seed --opt $optimiser --weight_decay $wd --dataset $dataset
+            # python ./example/parameter_shift.py --lr $lr --seed $seed --opt $optimiser --weight_decay $wd --dataset $dataset
             # Wait for a short time to avoid overwhelming the scheduler
             sleep 2
-        # done
+        done
   
     done
 done

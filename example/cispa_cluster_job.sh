@@ -7,7 +7,7 @@
 ## AAASBATCH --cpus-per-task=128
 #SBATCH --time=6-23:30:00
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A100:4
+#SBATCH --gres=gpu:A100:1
 
 
 if [ ! -f ~/.config/enroot/.credentials ]; then
@@ -38,13 +38,13 @@ echo "Number of GPUs allocated: $NUM_GPUS"
 export MASTER_PORT=$((1000 + RANDOM % 5000))  # 12345  # Set a free port for master node communication
 export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)  # Get master node address
 
-export WORLD_SIZE=$((SLURM_NNODES * 4))  # Total number of processes
+export WORLD_SIZE=$((SLURM_NNODES * 1))  # Total number of processes
 export RANK=$SLURM_PROCID                         # Current process rank
-export nproc_per_node=4
+export nproc_per_node=1
 export WANDB_MODE=online
 
 srun --container-image=projects.cispa.saarland:5005#c01chzh/nanoadam:latest --container-mounts="$WORK_DIR":/workspace\
-    bash $WORK_DIR/example/run.sh $1 $2 $3
+    bash $WORK_DIR/example/submit_multiple_job.sh
    
     
 srun mv $WORK_DIR/tmp/job-"$SLURM_JOB_ID".out "$JOBTMPDIR"/out.txt
